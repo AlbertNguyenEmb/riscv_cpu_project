@@ -1,0 +1,57 @@
+# =========================
+# ModelSim / QuestaSim
+# =========================
+work/
+transcript
+vsim.wlf
+*.wlf
+*.log
+*.jou
+*.pb
+modelsim.ini
+
+# Thư viện compile của ModelSim
+*_lib/
+questa_lib/
+
+# File tạm
+*.bak
+*.tmp
+
+# =========================
+# VSCode
+# =========================
+.vscode/
+
+# =========================
+# Windows
+# =========================
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Backup files
+# =========================
+*~
+*.swp
+*.swo
+
+# =========================
+# Simulation output
+# =========================
+*.vcd
+*.fst
+*.out
+
+# =========================
+# Generated binaries
+# =========================
+*.exe
+*.obj
+*.o
+
+# =========================
+# Python (nếu sau này dùng script)
+# =========================
+__pycache__/
+*.pyc
