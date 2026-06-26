@@ -8,6 +8,7 @@ vsim.wlf
 *.log
 *.jou
 *.pb
+_info
 modelsim.ini
 
 # Thư viện compile của ModelSim
