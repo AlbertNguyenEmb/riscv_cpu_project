@@ -8,17 +8,25 @@ module control_unit (
     output reg        mem_write,
     output reg        mem_to_reg,
     output reg        alu_src,
-    output reg [1:0]  imm_sel,
-    output reg [1:0]  alu_op
+    output reg [2:0]  imm_sel,
+    output reg [1:0]  alu_op,
+    output reg        branch,
+    output reg        jump,
+    output reg        jalr
 );
 
-    localparam OPCODE_RTYPE = 7'b0110011;
-    localparam OPCODE_ITYPE = 7'b0010011;
-    localparam OPCODE_LOAD  = 7'b0000011;
-    localparam OPCODE_STORE = 7'b0100011;
+    localparam OPCODE_RTYPE  = 7'b0110011;
+    localparam OPCODE_ITYPE  = 7'b0010011;
+    localparam OPCODE_LOAD   = 7'b0000011;
+    localparam OPCODE_STORE  = 7'b0100011;
+    localparam OPCODE_BRANCH = 7'b1100011;
+    localparam OPCODE_JAL    = 7'b1101111;
+    localparam OPCODE_JALR   = 7'b1100111;
 
-    localparam IMM_I = 2'b00;
-    localparam IMM_S = 2'b01;
+    localparam IMM_I = 3'b000;
+    localparam IMM_S = 3'b001;
+    localparam IMM_B = 3'b010;
+    localparam IMM_J = 3'b011;
 
     always @(*) begin
         reg_write = 1'b0;
@@ -28,8 +36,12 @@ module control_unit (
         alu_src   = 1'b0;
         imm_sel   = IMM_I;
         alu_op    = 2'b00;
+        branch    = 1'b0;
+        jump      = 1'b0;
+        jalr      = 1'b0;
 
         case (opcode)
+
             OPCODE_RTYPE: begin
                 reg_write = 1'b1;
                 alu_src   = 1'b0;
@@ -53,22 +65,38 @@ module control_unit (
             end
 
             OPCODE_STORE: begin
-                reg_write = 1'b0;
                 mem_write = 1'b1;
                 alu_src   = 1'b1;
                 imm_sel   = IMM_S;
                 alu_op    = 2'b00;
             end
 
+            OPCODE_BRANCH: begin
+                branch  = 1'b1;
+                imm_sel = IMM_B;
+                alu_src = 1'b0;
+                alu_op  = 2'b01;
+            end
+
+            OPCODE_JAL: begin
+                reg_write = 1'b1;
+                jump      = 1'b1;
+                jalr      = 1'b0;
+                imm_sel   = IMM_J;
+            end
+
+            OPCODE_JALR: begin
+                reg_write = 1'b1;
+                jump      = 1'b1;
+                jalr      = 1'b1;
+                imm_sel   = IMM_I;
+                alu_src   = 1'b1;
+            end
+
             default: begin
                 reg_write = 1'b0;
-                mem_read  = 1'b0;
-                mem_write = 1'b0;
-                mem_to_reg = 1'b0;
-                alu_src   = 1'b0;
-                imm_sel   = IMM_I;
-                alu_op    = 2'b00;
             end
+
         endcase
     end
 
