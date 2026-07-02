@@ -13,51 +13,43 @@ module imem_pipeline (
             mem[i] = 32'h00000013; // NOP
         end
 
-        // 0x00: addi x1, x0, 10
-        // 0x04: addi x2, x0, 10
-        // 0x08: beq  x1, x2, equal
-        // 0x0C: addi x3, x0, 111     // must be flushed
-        // 0x10: addi x3, x0, 112     // must be flushed
-        // equal:
-        // 0x14: addi x3, x0, 30
-        // 0x18: addi x4, x0, 1
-        // 0x1C: bne  x1, x2, not_equal // not taken
-        // 0x20: addi x4, x4, 4
-        // 0x24: jal  x5, jump_target
-        // 0x28: addi x6, x0, 111     // must be flushed
-        // 0x2C: addi x6, x0, 112     // must be flushed
-        // jump_target:
-        // 0x30: addi x6, x0, 60
-        // 0x34: addi x7, x0, 64
-        // 0x38: jalr x8, 0(x7)
-        // 0x3C: addi x9, x0, 111     // must be flushed
-        // 0x40: addi x9, x0, 90
-        // 0x44: add  x10, x3, x9
-        // 0x48: sw   x10, 0(x0)
+        mem[0]  = 32'h123450b7; // lui   x1, 0x12345
+        mem[1]  = 32'h00001117; // auipc x2, 0x1
+        mem[2]  = 32'hfff00193; // addi  x3, x0, -1
 
-        mem[0]  = 32'h00a00093; // addi x1, x0, 10
-        mem[1]  = 32'h00a00113; // addi x2, x0, 10
-        mem[2]  = 32'h00208663; // beq  x1, x2, +12
-        mem[3]  = 32'h06f00193; // addi x3, x0, 111
-        mem[4]  = 32'h07000193; // addi x3, x0, 112
-        mem[5]  = 32'h01e00193; // addi x3, x0, 30
+        mem[3]  = 32'h0001a213; // slti  x4, x3, 0
+        mem[4]  = 32'h0011b293; // sltiu x5, x3, 1
 
-        mem[6]  = 32'h00100213; // addi x4, x0, 1
-        mem[7]  = 32'h00209663; // bne  x1, x2, +12
-        mem[8]  = 32'h00420213; // addi x4, x4, 4 
+        mem[5]  = 32'h00421313; // slli  x6, x4, 4
+        mem[6]  = 32'h00135393; // srli  x7, x6, 1
+        mem[7]  = 32'h4041d413; // srai  x8, x3, 4
 
-        mem[9]  = 32'h00c002ef; // jal x5, +12
-        mem[10] = 32'h06f00313; // addi x6, x0, 111
-        mem[11] = 32'h07000313; // addi x6, x0, 112
-        mem[12] = 32'h03c00313; // addi x6, x0, 60
+        mem[8]  = 32'h07f00513; // addi x10, x0, 127
+        mem[9]  = 32'h00a00023; // sb   x10, 0(x0)
+        mem[10] = 32'h00000583; // lb   x11, 0(x0)
+        mem[11] = 32'h00004603; // lbu  x12, 0(x0)
 
-        mem[13] = 32'h04000393; // addi x7, x0, 64
-        mem[14] = 32'h00038467; // jalr x8, 0(x7)
-        mem[15] = 32'h06f00493; // addi x9, x0, 111
-        mem[16] = 32'h05a00493; // addi x9, x0, 90
+        mem[12] = 32'hfff00693; // addi x13, x0, -1
+        mem[13] = 32'h00d000a3; // sb   x13, 1(x0)
+        mem[14] = 32'h00100703; // lb   x14, 1(x0)
+        mem[15] = 32'h00104783; // lbu  x15, 1(x0)
 
-        mem[17] = 32'h00918533; // add x10, x3, x9
-        mem[18] = 32'h00a02023; // sw x10, 0(x0)
+        mem[16] = 32'h12300813; // addi x16, x0, 291
+        mem[17] = 32'h01001223; // sh   x16, 4(x0)
+        mem[18] = 32'h00401883; // lh   x17, 4(x0)
+        mem[19] = 32'h00405903; // lhu  x18, 4(x0)
+
+        mem[20] = 32'hfff00993; // addi x19, x0, -1
+        mem[21] = 32'h01301323; // sh   x19, 6(x0)
+        mem[22] = 32'h00601a03; // lh   x20, 6(x0)
+        mem[23] = 32'h00605a83; // lhu  x21, 6(x0)
+
+        mem[24] = 32'h00102423; // sw   x1, 8(x0)
+        mem[25] = 32'h00802b03; // lw   x22, 8(x0)
+        mem[26] = 32'h000b0c33; // add  x24, x22, x0  // load-use test
+
+        mem[27] = 32'h00c58bb3; // add  x23, x11, x12
+        mem[28] = 32'h01702623; // sw   x23, 12(x0)
     end
 
     assign instr = mem[addr[9:2]];

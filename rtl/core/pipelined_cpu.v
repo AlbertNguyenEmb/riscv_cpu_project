@@ -51,6 +51,7 @@ module pipelined_cpu (
     wire        ID_branch;
     wire        ID_jump;
     wire        ID_jalr;
+    wire [1:0]  ID_alu_a_sel;
 
     control_unit u_control_unit (
         .opcode(ID_opcode),
@@ -63,7 +64,8 @@ module pipelined_cpu (
         .alu_op(ID_alu_op),
         .branch(ID_branch),
         .jump(ID_jump),
-        .jalr(ID_jalr)
+        .jalr(ID_jalr),
+        .alu_a_sel(ID_alu_a_sel)
     );
 
     wire [31:0] ID_read_data1;
@@ -118,12 +120,13 @@ module pipelined_cpu (
     reg        ID_EX_branch;
     reg        ID_EX_jump;
     reg        ID_EX_jalr;
+    reg [1:0]  ID_EX_alu_a_sel;
 
     // ============================================================
     // Hazard Detection Unit
     // ============================================================
     wire stall;
-
+    // Detect load used data
     hazard_detection_unit u_hazard_detection_unit (
         .ID_EX_mem_read(ID_EX_mem_read),
         .ID_EX_rd(ID_EX_rd),
@@ -212,6 +215,15 @@ module pipelined_cpu (
     // ============================================================
     // EX stage
     // ============================================================
+    localparam ALU_A_RS1  = 2'b00;
+    localparam ALU_A_PC   = 2'b01;
+    localparam ALU_A_ZERO = 2'b10;
+
+    wire [31:0] EX_alu_a;
+
+    assign EX_alu_a = (ID_EX_alu_a_sel == ALU_A_PC)   ? ID_EX_pc :
+                      (ID_alu_a_sel    == ALU_A_ZERO) ? 32'b0 :
+                                                        EX_forwarded_a;
     wire [31:0] EX_alu_b;
     wire [3:0]  EX_alu_ctrl;
     wire [31:0] EX_alu_result;
@@ -227,7 +239,7 @@ module pipelined_cpu (
     );
 
     alu u_alu (
-        .a(EX_forwarded_a),
+        .a(EX_alu_a),
         .b(EX_alu_b),
         .alu_ctrl(EX_alu_ctrl),
         .result(EX_alu_result),
@@ -274,11 +286,13 @@ module pipelined_cpu (
     // MEM stage
     // ============================================================
     wire [31:0] MEM_read_data;
+    reg  [2:0]  EX_MEM_funct3;
 
     dmem u_dmem (
         .clk(clk),
         .mem_write(EX_MEM_mem_write),
         .mem_read(EX_MEM_mem_read),
+        .funct3(EX_MEM_funct3),
         .addr(EX_MEM_alu_result),
         .write_data(EX_MEM_write_data),
         .read_data(MEM_read_data)
@@ -314,11 +328,13 @@ module pipelined_cpu (
             ID_EX_branch     <= 1'b0;
             ID_EX_jump       <= 1'b0;
             ID_EX_jalr       <= 1'b0;
+            ID_EX_alu_a_sel  <= 2'b00;
 
             EX_MEM_alu_result <= 32'b0;
             EX_MEM_write_data <= 32'b0;
             EX_MEM_pc_plus4   <= 32'b0;
             EX_MEM_rd         <= 5'b0;
+            EX_MEM_funct3     <= 3'b0; 
 
             EX_MEM_reg_write  <= 1'b0;
             EX_MEM_mem_read   <= 1'b0;
@@ -384,6 +400,8 @@ module pipelined_cpu (
                 ID_EX_branch     <= 1'b0;
                 ID_EX_jump       <= 1'b0;
                 ID_EX_jalr       <= 1'b0;
+                ID_EX_alu_a_sel  <= 2'b00;
+
             end else begin
                 ID_EX_pc         <= IF_ID_pc;
                 ID_EX_pc_plus4   <= IF_ID_pc + 32'd4;
@@ -406,6 +424,7 @@ module pipelined_cpu (
                 ID_EX_branch     <= ID_branch;
                 ID_EX_jump       <= ID_jump;
                 ID_EX_jalr       <= ID_jalr;
+                ID_EX_alu_a_sel  <= ID_alu_a_sel;
             end
 
             // ====================================================
@@ -415,6 +434,7 @@ module pipelined_cpu (
             EX_MEM_write_data <= EX_forwarded_b;
             EX_MEM_pc_plus4   <= ID_EX_pc_plus4;
             EX_MEM_rd         <= ID_EX_rd;
+            EX_MEM_funct3     <= ID_EX_funct3;
 
             EX_MEM_reg_write  <= ID_EX_reg_write;
             EX_MEM_mem_read   <= ID_EX_mem_read;

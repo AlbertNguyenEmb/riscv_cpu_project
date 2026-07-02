@@ -18,6 +18,8 @@ module hazard_detection_unit (
     localparam OPCODE_BRANCH = 7'b1100011;
     localparam OPCODE_JAL    = 7'b1101111;
     localparam OPCODE_JALR   = 7'b1100111;
+    localparam OPCODE_LUI    = 7'b0010111;
+    localparam OPCODE_AUIPC  = 7'b0010111;
 
     reg uses_rs1;
     reg uses_rs2;
@@ -58,7 +60,9 @@ module hazard_detection_unit (
                 uses_rs2 = 1'b0;
             end
 
-            OPCODE_JAL: begin
+            OPCODE_JAL,
+            OPCODE_LUI,
+            OPCODE_AUIPC: begin
                 uses_rs1 = 1'b0;
                 uses_rs2 = 1'b0;
             end

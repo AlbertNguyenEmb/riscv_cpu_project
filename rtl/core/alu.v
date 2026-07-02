@@ -18,7 +18,7 @@ module alu (
     localparam ALU_SLL = 4'b0110;
     localparam ALU_SRL = 4'b0111;
     localparam ALU_SRA = 4'b1000;
-
+    localparam ALU_SLTU = 4'b1001;
     always @(*) begin
         case (alu_ctrl)
             ALU_ADD: result = a + b;
@@ -30,6 +30,7 @@ module alu (
             ALU_SLL: result = a << b[4:0];
             ALU_SRL: result = a >> b[4:0];
             ALU_SRA: result = $signed(a) >>> b[4:0];
+            ALU_SLTU: result = (a < b) ? 32'd1 : 32'd0;
             default: result = 32'b0;
         endcase
     end
