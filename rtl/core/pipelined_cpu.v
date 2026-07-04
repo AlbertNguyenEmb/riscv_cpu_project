@@ -1,12 +1,38 @@
 `timescale 1ns/1ps
 
 module pipelined_cpu (
-    input wire clk,
-    input wire rst
+    input  wire clk,
+    input  wire rst,
+    input  wire [31:0] gpio_in,
+    output wire [31:0] gpio_out
 );
     
     localparam NOP = 32'h00000013;
     localparam OPCODE_RTYPE = 7'b0110011;
+    // ============================================================
+    // Valid bit for instr_count
+    // ============================================================
+    reg IF_ID_valid;
+    reg ID_EX_valid;
+    reg EX_MEM_valid;
+    reg MEM_WB_valid;
+
+    // ============================================================
+    // Performance registers
+    // ============================================================
+    reg [31:0] cycle_count;
+    reg [31:0] instr_count;
+    reg [31:0] stall_count;
+    reg [31:0] flush_count;
+    reg [31:0] m_stall_count;
+
+    // ============================================================
+    // GPIO registers
+    // ============================================================
+    reg [31:0] gpio_out_reg;
+
+    assign gpio_out = gpio_out_reg;
+
     // ============================================================
     // PC and IF stage
     // ============================================================
@@ -240,7 +266,7 @@ module pipelined_cpu (
     wire [31:0] EX_alu_a;
 
     assign EX_alu_a = (ID_EX_alu_a_sel == ALU_A_PC)   ? ID_EX_pc :
-                      (ID_alu_a_sel    == ALU_A_ZERO) ? 32'b0 :
+                      (ID_EX_alu_a_sel    == ALU_A_ZERO) ? 32'b0 :
                                                         EX_forwarded_a;
     wire [31:0] EX_alu_b;
     wire [3:0]  EX_alu_ctrl;
@@ -318,28 +344,95 @@ module pipelined_cpu (
     // ============================================================
     // MEM stage
     // ============================================================
+
+    // Decode MMIO address
+    wire MEM_is_gpio;
+    wire MEM_is_perf;
+    wire MEM_is_mmio;
+
+    assign MEM_is_gpio = (EX_MEM_alu_result[31:16] == 16'h1000);
+    assign MEM_is_perf = (EX_MEM_alu_result[31:16] == 16'h2000);
+    assign MEM_is_mmio = MEM_is_gpio || MEM_is_perf;
+
     wire [31:0] MEM_read_data;
+    reg  [31:0] MEM_mmio_read_data;
     reg  [2:0]  EX_MEM_funct3;
+
+    wire dmem_mem_read;
+    wire dmem_mem_write;
+    wire [31:0] MEM_dmem_read_data;
+
+    assign dmem_mem_read  = EX_MEM_mem_read && !MEM_is_mmio;
+    assign dmem_mem_write = EX_MEM_mem_write && !MEM_is_mmio;
 
     dmem u_dmem (
         .clk(clk),
-        .mem_write(EX_MEM_mem_write),
-        .mem_read(EX_MEM_mem_read),
+        .mem_write(dmem_mem_write),
+        .mem_read(dmem_mem_read),
         .funct3(EX_MEM_funct3),
         .addr(EX_MEM_alu_result),
         .write_data(EX_MEM_write_data),
-        .read_data(MEM_read_data)
+        .read_data(MEM_dmem_read_data)
     );
+
+    // ============================================================
+    // MMIO Read Data Mux
+    // ============================================================
+
+    always @(*) begin
+        case (EX_MEM_alu_result)
+
+            // GPIO
+            32'h1000_0000:
+                MEM_mmio_read_data = gpio_out_reg;
+
+            32'h1000_0004:
+                MEM_mmio_read_data = gpio_in;
+
+            // Performance Counters
+            32'h2000_0000:
+                MEM_mmio_read_data = cycle_count;
+
+            32'h2000_0004:
+                MEM_mmio_read_data = instr_count;
+
+            32'h2000_0008:
+                MEM_mmio_read_data = stall_count;
+
+            32'h2000_000C:
+                MEM_mmio_read_data = flush_count;
+
+            32'h2000_0010:
+                MEM_mmio_read_data = m_stall_count;
+
+            default:
+                MEM_mmio_read_data = 32'b0;
+        endcase
+    end
+
+    assign MEM_read_data =
+        MEM_is_mmio ? MEM_mmio_read_data :
+                    MEM_dmem_read_data;
 
     // ============================================================
     // Pipeline sequential logic
     // ============================================================
     always @(posedge clk or posedge rst) begin
         if (rst) begin
+
+            cycle_count   <= 32'b0;
+            instr_count   <= 32'b0;
+            stall_count   <= 32'b0;
+            flush_count   <= 32'b0;
+            m_stall_count <= 32'b0;
+
+            gpio_out_reg <= 32'b0;
+
             pc <= 32'b0;
 
             IF_ID_pc    <= 32'b0;
             IF_ID_instr <= NOP;
+            IF_ID_valid <= 1'b0;
 
             ID_EX_pc         <= 32'b0;
             ID_EX_pc_plus4   <= 32'b0;
@@ -352,6 +445,7 @@ module pipelined_cpu (
             ID_EX_funct3     <= 3'b0;
             ID_EX_funct7     <= 7'b0;
             ID_EX_opcode     <= 7'b0;
+            ID_EX_valid      <= 1'b0;
 
             ID_EX_reg_write  <= 1'b0;
             ID_EX_mem_read   <= 1'b0;
@@ -369,6 +463,8 @@ module pipelined_cpu (
             EX_MEM_pc_plus4   <= 32'b0;
             EX_MEM_rd         <= 5'b0;
             EX_MEM_funct3     <= 3'b0; 
+            EX_MEM_valid      <= 1'b0;
+            MEM_WB_valid      <= 1'b0;
 
             EX_MEM_reg_write  <= 1'b0;
             EX_MEM_mem_read   <= 1'b0;
@@ -386,11 +482,44 @@ module pipelined_cpu (
             MEM_WB_jump       <= 1'b0;
 
         end else begin
+            // ====================================================
+            // Performance counters
+            // ====================================================
+            cycle_count <= cycle_count + 32'd1;
+            
+            if (MEM_WB_valid) begin
+                instr_count <= instr_count + 32'd1;
+            end
 
+            if (load_use_stall || M_stall) begin
+                stall_count <= stall_count + 32'd1;
+            end
+
+            if (M_stall) begin
+                m_stall_count <= m_stall_count + 32'd1;
+            end
+
+            if (pc_redirect) begin
+                flush_count <= flush_count + 32'd1;
+            end
+            // ============================================================
+            // GPIO Write
+            // ============================================================
+            if (EX_MEM_mem_write && MEM_is_gpio) begin
+                case (EX_MEM_alu_result)
+
+                    32'h1000_0000:
+                        gpio_out_reg <= EX_MEM_write_data;
+
+                    default:
+                        gpio_out_reg <= gpio_out_reg;
+
+                endcase
+            end
             // ====================================================
             // IF stage
             // Priority:
-            // 1. pc_redirect
+            // 1. pc_redirect / flush
             // 2. stall
             // 3. normal fetch
             // ====================================================
@@ -398,14 +527,17 @@ module pipelined_cpu (
                 pc          <= EX_pc_target;
                 IF_ID_pc    <= 32'b0;
                 IF_ID_instr <= NOP;
+                IF_ID_valid <= 1'b0;
             end else if (load_use_stall || M_stall) begin
                 pc          <= pc;
                 IF_ID_pc    <= IF_ID_pc;
                 IF_ID_instr <= IF_ID_instr;
+                IF_ID_valid <= IF_ID_valid;
             end else begin
                 IF_ID_pc    <= pc;
                 IF_ID_instr <= instr_from_imem;
                 pc          <= pc + 32'd4;
+                IF_ID_valid <= (instr_from_imem != NOP);
             end
 
             // ====================================================
@@ -425,6 +557,7 @@ module pipelined_cpu (
                 ID_EX_funct3     <= 3'b0;
                 ID_EX_funct7     <= 7'b0;
                 ID_EX_opcode     <= 7'b0;
+                ID_EX_valid      <= 1'b0;
 
                 ID_EX_reg_write  <= 1'b0;
                 ID_EX_mem_read   <= 1'b0;
@@ -449,6 +582,7 @@ module pipelined_cpu (
                 ID_EX_funct3     <= ID_EX_funct3;
                 ID_EX_funct7     <= ID_EX_funct7;
                 ID_EX_opcode     <= ID_EX_opcode;
+                ID_EX_valid      <= ID_EX_valid;
 
                 ID_EX_reg_write  <= ID_EX_reg_write;
                 ID_EX_mem_read   <= ID_EX_mem_read;
@@ -468,6 +602,7 @@ module pipelined_cpu (
                 ID_EX_read_data2 <= ID_read_data2;
                 ID_EX_imm        <= ID_imm_out;
                 ID_EX_opcode     <= ID_opcode;
+                ID_EX_valid      <= IF_ID_valid;
 
                 ID_EX_rs1    <= ID_rs1;
                 ID_EX_rs2    <= ID_rs2;
@@ -496,6 +631,7 @@ module pipelined_cpu (
                 EX_MEM_pc_plus4   <= EX_MEM_pc_plus4;
                 EX_MEM_rd         <= EX_MEM_rd;
                 EX_MEM_funct3     <= EX_MEM_funct3;
+                EX_MEM_valid      <= 1'b0;
 
                 EX_MEM_reg_write  <= EX_MEM_reg_write;
                 EX_MEM_mem_read   <= EX_MEM_mem_read;
@@ -508,6 +644,7 @@ module pipelined_cpu (
                 EX_MEM_pc_plus4   <= ID_EX_pc_plus4;
                 EX_MEM_rd         <= ID_EX_rd;
                 EX_MEM_funct3     <= ID_EX_funct3;
+                EX_MEM_valid      <= ID_EX_valid;
 
                 EX_MEM_reg_write  <= ID_EX_reg_write;
                 EX_MEM_mem_read   <= ID_EX_mem_read;
@@ -523,6 +660,7 @@ module pipelined_cpu (
                 MEM_WB_alu_result <= EX_MEM_alu_result;
                 MEM_WB_pc_plus4   <= EX_MEM_pc_plus4;
                 MEM_WB_rd         <= EX_MEM_rd;
+                MEM_WB_valid      <= EX_MEM_valid;
 
                 MEM_WB_reg_write  <= EX_MEM_reg_write;
                 MEM_WB_mem_to_reg <= EX_MEM_mem_to_reg;

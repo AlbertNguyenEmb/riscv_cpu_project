@@ -13,33 +13,40 @@ module imem_pipeline (
             mem[i] = 32'h00000013; // NOP
         end
 
-        mem[0]  = 32'h00600093; // addi x1, x0, 6
-        mem[1]  = 32'h00700113; // addi x2, x0, 7
+        // GPIO base = 0x1000_0000
+        // PERF base = 0x2000_0000
 
-        mem[2]  = 32'h022081b3; // mul    x3, x1, x2      => 42
+        mem[0]  = 32'h100000b7; // lui  x1, 0x10000      ; x1 = 0x1000_0000
+        mem[1]  = 32'h05500113; // addi x2, x0, 0x55
+        mem[2]  = 32'h0020a023; // sw   x2, 0(x1)        ; GPIO_OUT = 0x55
+        mem[3]  = 32'h0040a183; // lw   x3, 4(x1)        ; x3 = GPIO_IN
 
-        mem[3]  = 32'hffa00213; // addi   x4, x0, -6
-        mem[4]  = 32'h022202b3; // mul    x5, x4, x2      => -42
-        mem[5]  = 32'h02221333; // mulh   x6, x4, x2      => high signed(-42)
-        mem[6]  = 32'h022233b3; // mulhu  x7, x4, x2      => high unsigned
-        mem[7]  = 32'h02222433; // mulhsu x8, x4, x2      => high signed*unsigned
+        mem[4]  = 32'h20000237; // lui  x4, 0x20000      ; x4 = 0x2000_0000
+        mem[5]  = 32'h00022283; // lw   x5, 0(x4)        ; cycle_count
+        mem[6]  = 32'h00422303; // lw   x6, 4(x4)        ; instr_count
 
-        mem[8]  = 32'h0211c4b3; // div    x9,  x3, x1     => 7
-        mem[9]  = 32'h0211e533; // rem    x10, x3, x1     => 0
+        // Create load-use stall
+        mem[7]  = 32'h02a00493; // addi x9, x0, 42
+        mem[8]  = 32'h00902823; // sw   x9, 16(x0)
+        mem[9]  = 32'h01002503; // lw   x10, 16(x0)
+        mem[10] = 32'h000505b3; // add  x11, x10, x0     ; load-use hazard
 
-        mem[10] = 32'hfd600613; // addi   x12, x0, -42
-        mem[11] = 32'h022646b3; // div    x13, x12, x2    => -6
-        mem[12] = 32'h02266733; // rem    x14, x12, x2    => 0
+        // Create branch flush
+        mem[11] = 32'h00958663; // beq  x11, x9, +12
+        mem[12] = 32'h06f00613; // addi x12, x0, 111     ; flushed
+        mem[13] = 32'h07000613; // addi x12, x0, 112     ; flushed
+        mem[14] = 32'h04d00613; // addi x12, x0, 77      ; real target
 
-        mem[13] = 32'h0221d7b3; // divu   x15, x3, x2     => 6
-        mem[14] = 32'h0221f833; // remu   x16, x3, x2     => 0
+        // GPIO_OUT = 42
+        mem[15] = 32'h00b0a023; // sw   x11, 0(x1)
 
-        mem[15] = 32'h0200c8b3; // div    x17, x1, x0     => 0xffffffff
-        mem[16] = 32'h0200e933; // rem    x18, x1, x0     => 6
+        // Read counters after stall/flush happened
+        mem[16] = 32'h00822683; // lw   x13, 8(x4)       ; stall_count
+        mem[17] = 32'h00c22703; // lw   x14, 12(x4)      ; flush_count
 
-        mem[17] = 32'h00302023; // sw x3,  0(x0)
-        mem[18] = 32'h00d02223; // sw x13, 4(x0)
-        mem[19] = 32'h01102423; // sw x17, 8(x0)
+        // Store counters into DMEM for checking
+        mem[18] = 32'h00d02a23; // sw   x13, 20(x0)
+        mem[19] = 32'h00e02c23; // sw   x14, 24(x0)
     end
 
     assign instr = mem[addr[9:2]];
