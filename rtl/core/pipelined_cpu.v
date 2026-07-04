@@ -4,9 +4,9 @@ module pipelined_cpu (
     input wire clk,
     input wire rst
 );
-
+    
     localparam NOP = 32'h00000013;
-
+    localparam OPCODE_RTYPE = 7'b0110011;
     // ============================================================
     // PC and IF stage
     // ============================================================
@@ -104,6 +104,7 @@ module pipelined_cpu (
     reg [31:0] ID_EX_read_data1;
     reg [31:0] ID_EX_read_data2;
     reg [31:0] ID_EX_imm;
+    reg [6:0]  ID_EX_opcode;
 
     reg [4:0]  ID_EX_rs1;
     reg [4:0]  ID_EX_rs2;
@@ -125,7 +126,23 @@ module pipelined_cpu (
     // ============================================================
     // Hazard Detection Unit
     // ============================================================
+    wire M_stall;
+    wire load_use_stall;
     wire stall;
+    wire EX_is_m_instr;
+    // set up M-unit
+    wire [31:0] M_result;
+    wire        M_busy;
+    wire        M_done;
+    wire        M_start;
+    
+    assign EX_is_m_instr = (ID_EX_opcode == OPCODE_RTYPE) &&
+                           (ID_EX_funct7 ==  7'b0000001);
+
+    assign M_stall = EX_is_m_instr && !M_done;
+    assign stall   = load_use_stall || M_stall;
+
+    assign M_start = EX_is_m_instr && !M_busy && !M_done;
     // Detect load used data
     hazard_detection_unit u_hazard_detection_unit (
         .ID_EX_mem_read(ID_EX_mem_read),
@@ -133,7 +150,7 @@ module pipelined_cpu (
         .IF_ID_rs1(ID_rs1),
         .IF_ID_rs2(ID_rs2),
         .IF_ID_opcode(ID_opcode),
-        .stall(stall)
+        .stall(load_use_stall)
     );
 
     // ============================================================
@@ -215,6 +232,7 @@ module pipelined_cpu (
     // ============================================================
     // EX stage
     // ============================================================
+    // Using ALU
     localparam ALU_A_RS1  = 2'b00;
     localparam ALU_A_PC   = 2'b01;
     localparam ALU_A_ZERO = 2'b10;
@@ -246,6 +264,21 @@ module pipelined_cpu (
         .zero(EX_zero)
     );
 
+    m_unit u_m_unit (
+        .clk(clk),
+        .rst(rst),
+        .start(M_start),
+        .funct3(ID_EX_funct3),
+        .rs1_value(EX_forwarded_a),
+        .rs2_value(EX_forwarded_b),
+        .result(M_result),
+        .busy(M_busy),
+        .done(M_done)
+    );
+
+    wire [31:0] EX_execute_result;
+
+    assign EX_execute_result = (EX_is_m_instr) ? M_result : EX_alu_result;
     // ============================================================
     // Branch decision
     // ============================================================
@@ -318,6 +351,7 @@ module pipelined_cpu (
             ID_EX_rd         <= 5'b0;
             ID_EX_funct3     <= 3'b0;
             ID_EX_funct7     <= 7'b0;
+            ID_EX_opcode     <= 7'b0;
 
             ID_EX_reg_write  <= 1'b0;
             ID_EX_mem_read   <= 1'b0;
@@ -364,7 +398,7 @@ module pipelined_cpu (
                 pc          <= EX_pc_target;
                 IF_ID_pc    <= 32'b0;
                 IF_ID_instr <= NOP;
-            end else if (stall) begin
+            end else if (load_use_stall || M_stall) begin
                 pc          <= pc;
                 IF_ID_pc    <= IF_ID_pc;
                 IF_ID_instr <= IF_ID_instr;
@@ -379,7 +413,7 @@ module pipelined_cpu (
             // If redirect: flush wrong instruction.
             // If stall: insert bubble.
             // ====================================================
-            if (pc_redirect || stall) begin
+            if (pc_redirect || load_use_stall) begin
                 ID_EX_pc         <= 32'b0;
                 ID_EX_pc_plus4   <= 32'b0;
                 ID_EX_read_data1 <= 32'b0;
@@ -390,6 +424,7 @@ module pipelined_cpu (
                 ID_EX_rd         <= 5'b0;
                 ID_EX_funct3     <= 3'b0;
                 ID_EX_funct7     <= 7'b0;
+                ID_EX_opcode     <= 7'b0;
 
                 ID_EX_reg_write  <= 1'b0;
                 ID_EX_mem_read   <= 1'b0;
@@ -401,13 +436,38 @@ module pipelined_cpu (
                 ID_EX_jump       <= 1'b0;
                 ID_EX_jalr       <= 1'b0;
                 ID_EX_alu_a_sel  <= 2'b00;
+            end else if (M_stall) begin
+                // giữ nguyên instruction M trong EX stage
+                ID_EX_pc         <= ID_EX_pc;
+                ID_EX_pc_plus4   <= ID_EX_pc_plus4;
+                ID_EX_read_data1 <= ID_EX_read_data1;
+                ID_EX_read_data2 <= ID_EX_read_data2;
+                ID_EX_imm        <= ID_EX_imm;
+                ID_EX_rs1        <= ID_EX_rs1;
+                ID_EX_rs2        <= ID_EX_rs2;
+                ID_EX_rd         <= ID_EX_rd;
+                ID_EX_funct3     <= ID_EX_funct3;
+                ID_EX_funct7     <= ID_EX_funct7;
+                ID_EX_opcode     <= ID_EX_opcode;
 
-            end else begin
+                ID_EX_reg_write  <= ID_EX_reg_write;
+                ID_EX_mem_read   <= ID_EX_mem_read;
+                ID_EX_mem_write  <= ID_EX_mem_write;
+                ID_EX_mem_to_reg <= ID_EX_mem_to_reg;
+                ID_EX_alu_src    <= ID_EX_alu_src;
+                ID_EX_alu_op     <= ID_EX_alu_op;
+                ID_EX_branch     <= ID_EX_branch;
+                ID_EX_jump       <= ID_EX_jump;
+                ID_EX_jalr       <= ID_EX_jalr;
+                ID_EX_alu_a_sel  <= ID_EX_alu_a_sel;
+            end
+            else begin
                 ID_EX_pc         <= IF_ID_pc;
                 ID_EX_pc_plus4   <= IF_ID_pc + 32'd4;
                 ID_EX_read_data1 <= ID_read_data1;
                 ID_EX_read_data2 <= ID_read_data2;
                 ID_EX_imm        <= ID_imm_out;
+                ID_EX_opcode     <= ID_opcode;
 
                 ID_EX_rs1    <= ID_rs1;
                 ID_EX_rs2    <= ID_rs2;
@@ -430,30 +490,44 @@ module pipelined_cpu (
             // ====================================================
             // EX stage → EX/MEM
             // ====================================================
-            EX_MEM_alu_result <= EX_alu_result;
-            EX_MEM_write_data <= EX_forwarded_b;
-            EX_MEM_pc_plus4   <= ID_EX_pc_plus4;
-            EX_MEM_rd         <= ID_EX_rd;
-            EX_MEM_funct3     <= ID_EX_funct3;
+            if (M_stall) begin
+                EX_MEM_alu_result <= EX_MEM_alu_result;
+                EX_MEM_write_data <= EX_MEM_write_data;
+                EX_MEM_pc_plus4   <= EX_MEM_pc_plus4;
+                EX_MEM_rd         <= EX_MEM_rd;
+                EX_MEM_funct3     <= EX_MEM_funct3;
 
-            EX_MEM_reg_write  <= ID_EX_reg_write;
-            EX_MEM_mem_read   <= ID_EX_mem_read;
-            EX_MEM_mem_write  <= ID_EX_mem_write;
-            EX_MEM_mem_to_reg <= ID_EX_mem_to_reg;
-            EX_MEM_jump       <= ID_EX_jump;
+                EX_MEM_reg_write  <= EX_MEM_reg_write;
+                EX_MEM_mem_read   <= EX_MEM_mem_read;
+                EX_MEM_mem_write  <= EX_MEM_mem_write;
+                EX_MEM_mem_to_reg <= EX_MEM_mem_to_reg;
+                EX_MEM_jump       <= EX_MEM_jump;
+            end else begin
+                EX_MEM_alu_result <= EX_execute_result;
+                EX_MEM_write_data <= EX_forwarded_b;
+                EX_MEM_pc_plus4   <= ID_EX_pc_plus4;
+                EX_MEM_rd         <= ID_EX_rd;
+                EX_MEM_funct3     <= ID_EX_funct3;
+
+                EX_MEM_reg_write  <= ID_EX_reg_write;
+                EX_MEM_mem_read   <= ID_EX_mem_read;
+                EX_MEM_mem_write  <= ID_EX_mem_write;
+                EX_MEM_mem_to_reg <= ID_EX_mem_to_reg;
+                EX_MEM_jump       <= ID_EX_jump;
+            end
 
             // ====================================================
             // MEM stage → MEM/WB
             // ====================================================
-            MEM_WB_read_data  <= MEM_read_data;
-            MEM_WB_alu_result <= EX_MEM_alu_result;
-            MEM_WB_pc_plus4   <= EX_MEM_pc_plus4;
-            MEM_WB_rd         <= EX_MEM_rd;
+                MEM_WB_read_data  <= MEM_read_data;
+                MEM_WB_alu_result <= EX_MEM_alu_result;
+                MEM_WB_pc_plus4   <= EX_MEM_pc_plus4;
+                MEM_WB_rd         <= EX_MEM_rd;
 
-            MEM_WB_reg_write  <= EX_MEM_reg_write;
-            MEM_WB_mem_to_reg <= EX_MEM_mem_to_reg;
-            MEM_WB_jump       <= EX_MEM_jump;
-        end
+                MEM_WB_reg_write  <= EX_MEM_reg_write;
+                MEM_WB_mem_to_reg <= EX_MEM_mem_to_reg;
+                MEM_WB_jump       <= EX_MEM_jump;
+            end
     end
 
 endmodule

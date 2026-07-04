@@ -20,68 +20,67 @@ module tb_pipelined_cpu;
         #12;
         rst = 0;
 
-        #900;
+        #10000;
 
         $display("==================================");
-        $display("Level 7 RV32I Practical Subset Results:");
+        $display("Level 8 RV32IM Results:");
 
-        $display("x1  = %h", dut.u_regfile.regs[1]);
-        $display("x2  = %h", dut.u_regfile.regs[2]);
-        $display("x3  = %h", dut.u_regfile.regs[3]);
-        $display("x4  = %0d", dut.u_regfile.regs[4]);
-        $display("x5  = %0d", dut.u_regfile.regs[5]);
-        $display("x6  = %0d", dut.u_regfile.regs[6]);
-        $display("x7  = %0d", dut.u_regfile.regs[7]);
-        $display("x8  = %h", dut.u_regfile.regs[8]);
+        $display("x1  = %0d", dut.u_regfile.regs[1]);
+        $display("x2  = %0d", dut.u_regfile.regs[2]);
+        $display("x3  = %0d", dut.u_regfile.regs[3]);
+        $display("x4  = %h",  dut.u_regfile.regs[4]);
+        $display("x5  = %h",  dut.u_regfile.regs[5]);
+        $display("x6  = %h",  dut.u_regfile.regs[6]);
+        $display("x7  = %h",  dut.u_regfile.regs[7]);
+        $display("x8  = %h",  dut.u_regfile.regs[8]);
+        $display("x9  = %0d", dut.u_regfile.regs[9]);
+        $display("x10 = %0d", dut.u_regfile.regs[10]);
 
-        $display("x11 = %0d", dut.u_regfile.regs[11]);
-        $display("x12 = %0d", dut.u_regfile.regs[12]);
-        $display("x14 = %h", dut.u_regfile.regs[14]);
+        $display("x12 = %h",  dut.u_regfile.regs[12]);
+        $display("x13 = %h",  dut.u_regfile.regs[13]);
+        $display("x14 = %0d", dut.u_regfile.regs[14]);
         $display("x15 = %0d", dut.u_regfile.regs[15]);
-
-        $display("x17 = %0d", dut.u_regfile.regs[17]);
+        $display("x16 = %0d", dut.u_regfile.regs[16]);
+        $display("x17 = %h",  dut.u_regfile.regs[17]);
         $display("x18 = %0d", dut.u_regfile.regs[18]);
-        $display("x20 = %h", dut.u_regfile.regs[20]);
-        $display("x21 = %0d", dut.u_regfile.regs[21]);
 
-        $display("x22 = %h", dut.u_regfile.regs[22]);
-        $display("x23 = %0d", dut.u_regfile.regs[23]);
-        $display("x24 = %h", dut.u_regfile.regs[24]);
+        $display("DMEM[0..3]  = %h %h %h %h",
+                 dut.u_dmem.mem[3], dut.u_dmem.mem[2],
+                 dut.u_dmem.mem[1], dut.u_dmem.mem[0]);
 
-        $display("DMEM[12] = %h", dut.u_dmem.mem[12]);
-        $display("DMEM[13] = %h", dut.u_dmem.mem[13]);
-        $display("DMEM[14] = %h", dut.u_dmem.mem[14]);
-        $display("DMEM[15] = %h", dut.u_dmem.mem[15]);
+        $display("DMEM[4..7]  = %h %h %h %h",
+                 dut.u_dmem.mem[7], dut.u_dmem.mem[6],
+                 dut.u_dmem.mem[5], dut.u_dmem.mem[4]);
+
+        $display("DMEM[8..11] = %h %h %h %h",
+                 dut.u_dmem.mem[11], dut.u_dmem.mem[10],
+                 dut.u_dmem.mem[9],  dut.u_dmem.mem[8]);
 
         $display("==================================");
 
-        if (dut.u_regfile.regs[1]  == 32'h12345000 &&
-            dut.u_regfile.regs[2]  == 32'h00001004 &&
-            dut.u_regfile.regs[3]  == 32'hffff_ffff &&
-            dut.u_regfile.regs[4]  == 32'd1 &&
-            dut.u_regfile.regs[5]  == 32'd0 &&
-            dut.u_regfile.regs[6]  == 32'd16 &&
-            dut.u_regfile.regs[7]  == 32'd8 &&
+        if (dut.u_regfile.regs[1]  == 32'd6 &&
+            dut.u_regfile.regs[2]  == 32'd7 &&
+            dut.u_regfile.regs[3]  == 32'd42 &&
+            dut.u_regfile.regs[4]  == 32'hffff_fffa &&
+            dut.u_regfile.regs[5]  == 32'hffff_ffd6 &&
+            dut.u_regfile.regs[6]  == 32'hffff_ffff &&
+            dut.u_regfile.regs[7]  == 32'h0000_0006 &&
             dut.u_regfile.regs[8]  == 32'hffff_ffff &&
-
-            dut.u_regfile.regs[11] == 32'd127 &&
-            dut.u_regfile.regs[12] == 32'd127 &&
-            dut.u_regfile.regs[14] == 32'hffff_ffff &&
-            dut.u_regfile.regs[15] == 32'd255 &&
-
-            dut.u_regfile.regs[17] == 32'd291 &&
-            dut.u_regfile.regs[18] == 32'd291 &&
-            dut.u_regfile.regs[20] == 32'hffff_ffff &&
-            dut.u_regfile.regs[21] == 32'd65535 &&
-
-            dut.u_regfile.regs[22] == 32'h12345000 &&
-            dut.u_regfile.regs[23] == 32'd254 &&
-            dut.u_regfile.regs[24] == 32'h12345000 &&
-
-            dut.u_dmem.mem[12] == 8'hfe &&
-            dut.u_dmem.mem[13] == 8'h00 &&
-            dut.u_dmem.mem[14] == 8'h00 &&
-            dut.u_dmem.mem[15] == 8'h00) begin
+            dut.u_regfile.regs[9]  == 32'd7 &&
+            dut.u_regfile.regs[10] == 32'd0 &&
+            dut.u_regfile.regs[12] == 32'hffff_ffd6 &&
+            dut.u_regfile.regs[13] == 32'hffff_fffa &&
+            dut.u_regfile.regs[14] == 32'd0 &&
+            dut.u_regfile.regs[15] == 32'd6 &&
+            dut.u_regfile.regs[16] == 32'd0 &&
+            dut.u_regfile.regs[17] == 32'hffff_ffff &&
+            dut.u_regfile.regs[18] == 32'd6 &&
+            {dut.u_dmem.mem[3], dut.u_dmem.mem[2],
+             dut.u_dmem.mem[1], dut.u_dmem.mem[0]} == 32'd42 &&
+            {dut.u_dmem.mem[7], dut.u_dmem.mem[6],
+             dut.u_dmem.mem[5], dut.u_dmem.mem[4]} == 32'hffff_fffa &&
+            {dut.u_dmem.mem[11], dut.u_dmem.mem[10],
+             dut.u_dmem.mem[9],  dut.u_dmem.mem[8]} == 32'hffff_ffff) begin
 
             $display("TEST PASSED");
         end else begin
@@ -92,10 +91,12 @@ module tb_pipelined_cpu;
     end
 
     initial begin
-        $monitor("time=%0t pc=%0d stall=%b IF_ID=%h ID_EX_rd=%0d EX_MEM_rd=%0d MEM_WB_rd=%0d WB_data=%h",
+        $monitor("time=%0t pc=%0d stall=%b M_busy=%b M_done=%b IF_ID=%h ID_EX_rd=%0d EX_MEM_rd=%0d MEM_WB_rd=%0d WB_data=%h",
                  $time,
                  dut.pc,
                  dut.stall,
+                 dut.M_busy,
+                 dut.M_done,
                  dut.IF_ID_instr,
                  dut.ID_EX_rd,
                  dut.EX_MEM_rd,
