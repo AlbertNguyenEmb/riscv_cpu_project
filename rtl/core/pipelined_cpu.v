@@ -346,13 +346,16 @@ module pipelined_cpu (
     // ============================================================
 
     // Decode MMIO address
-    wire MEM_is_gpio;
-    wire MEM_is_perf;
+    wire MEM_is_gpio; // MEM is GPIO
+    wire MEM_is_perf; // MEM is Performance Counter
+    wire MEM_is_dsp;
     wire MEM_is_mmio;
 
     assign MEM_is_gpio = (EX_MEM_alu_result[31:16] == 16'h1000);
     assign MEM_is_perf = (EX_MEM_alu_result[31:16] == 16'h2000);
-    assign MEM_is_mmio = MEM_is_gpio || MEM_is_perf;
+    assign MEM_is_dsp  = (EX_MEM_alu_result[31:16] == 16'h3000);
+
+    assign MEM_is_mmio = MEM_is_gpio || MEM_is_perf || MEM_is_dsp;
 
     wire [31:0] MEM_read_data;
     reg  [31:0] MEM_mmio_read_data;
@@ -376,38 +379,58 @@ module pipelined_cpu (
     );
 
     // ============================================================
+    // Instantiate DSP Accelerator
+    // ============================================================
+    wire [31:0] DSP_read_data;
+    wire        DSP_write_en;
+
+    assign DSP_write_en = EX_MEM_mem_write && MEM_is_dsp;
+
+    dsp_accel u_dsp_accel (
+        .clk(clk),
+        .rst(rst),
+        .write_en(DSP_write_en),
+        .addr(EX_MEM_alu_result[7:0]),
+        .write_data(EX_MEM_write_data),
+        .read_data(DSP_read_data)
+    );
+
+    // ============================================================
     // MMIO Read Data Mux
     // ============================================================
 
     always @(*) begin
-        case (EX_MEM_alu_result)
+        if (MEM_is_dsp) begin
+            MEM_mmio_read_data = DSP_read_data;
+        end else begin
+            case (EX_MEM_alu_result)
+                // GPIO
+                32'h1000_0000:
+                    MEM_mmio_read_data = gpio_out_reg;
 
-            // GPIO
-            32'h1000_0000:
-                MEM_mmio_read_data = gpio_out_reg;
+                32'h1000_0004:
+                    MEM_mmio_read_data = gpio_in;
 
-            32'h1000_0004:
-                MEM_mmio_read_data = gpio_in;
+                // Performance Counters
+                32'h2000_0000:
+                    MEM_mmio_read_data = cycle_count;
 
-            // Performance Counters
-            32'h2000_0000:
-                MEM_mmio_read_data = cycle_count;
+                32'h2000_0004:
+                    MEM_mmio_read_data = instr_count;
 
-            32'h2000_0004:
-                MEM_mmio_read_data = instr_count;
+                32'h2000_0008:
+                    MEM_mmio_read_data = stall_count;
 
-            32'h2000_0008:
-                MEM_mmio_read_data = stall_count;
+                32'h2000_000C:
+                    MEM_mmio_read_data = flush_count;
 
-            32'h2000_000C:
-                MEM_mmio_read_data = flush_count;
+                32'h2000_0010:
+                    MEM_mmio_read_data = m_stall_count;
 
-            32'h2000_0010:
-                MEM_mmio_read_data = m_stall_count;
-
-            default:
-                MEM_mmio_read_data = 32'b0;
-        endcase
+                default:
+                    MEM_mmio_read_data = 32'b0;
+            endcase
+        end
     end
 
     assign MEM_read_data =

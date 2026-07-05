@@ -21,68 +21,49 @@ module tb_pipelined_cpu;
     end
 
     initial begin
-        gpio_in = 32'ha5a5_1234;
+        gpio_in = 32'h0000_0000;
 
         rst = 1;
         #12;
         rst = 0;
 
-        #1200;
+        #1000;
 
         $display("==================================");
-        $display("Level 9 Mini SoC Results:");
+        $display("Level 10 DSP Accelerator Results:");
 
-        $display("GPIO_IN      = %h", gpio_in);
-        $display("GPIO_OUT     = %h", gpio_out);
+        $display("DSP_BASE x1      = %h", dut.u_regfile.regs[1]);
+        $display("DSP_RESULT x5    = %0d", dut.u_regfile.regs[5]);
+        $display("DSP_COUNT x6     = %0d", dut.u_regfile.regs[6]);
 
-        $display("x1 GPIO_BASE = %h", dut.u_regfile.regs[1]);
-        $display("x2           = %h", dut.u_regfile.regs[2]);
-        $display("x3 GPIO_IN   = %h", dut.u_regfile.regs[3]);
+        $display("DSP internal A   = %0d", dut.u_dsp_accel.a_reg);
+        $display("DSP internal B   = %0d", dut.u_dsp_accel.b_reg);
+        $display("DSP internal ACC = %0d", dut.u_dsp_accel.acc_reg);
+        $display("DSP MAC count    = %0d", dut.u_dsp_accel.mac_count);
 
-        $display("x4 PERF_BASE = %h", dut.u_regfile.regs[4]);
-        $display("x5 cycles    = %0d", dut.u_regfile.regs[5]);
-        $display("x6 instrs    = %0d", dut.u_regfile.regs[6]);
+        $display("DMEM[0..3] = %h %h %h %h",
+                 dut.u_dmem.mem[3],
+                 dut.u_dmem.mem[2],
+                 dut.u_dmem.mem[1],
+                 dut.u_dmem.mem[0]);
 
-        $display("x9           = %0d", dut.u_regfile.regs[9]);
-        $display("x10          = %0d", dut.u_regfile.regs[10]);
-        $display("x11          = %0d", dut.u_regfile.regs[11]);
-        $display("x12          = %0d", dut.u_regfile.regs[12]);
-
-        $display("x13 stalls   = %0d", dut.u_regfile.regs[13]);
-        $display("x14 flushes  = %0d", dut.u_regfile.regs[14]);
-
-        $display("counter cycle_count   = %0d", dut.cycle_count);
-        $display("counter instr_count   = %0d", dut.instr_count);
-        $display("counter stall_count   = %0d", dut.stall_count);
-        $display("counter flush_count   = %0d", dut.flush_count);
-        $display("counter m_stall_count = %0d", dut.m_stall_count);
-
-        $display("DMEM[20..23] stall_count = %h%h%h%h",
-                 dut.u_dmem.mem[23],
-                 dut.u_dmem.mem[22],
-                 dut.u_dmem.mem[21],
-                 dut.u_dmem.mem[20]);
-
-        $display("DMEM[24..27] flush_count = %h%h%h%h",
-                 dut.u_dmem.mem[27],
-                 dut.u_dmem.mem[26],
-                 dut.u_dmem.mem[25],
-                 dut.u_dmem.mem[24]);
+        $display("DMEM[4..7] = %h %h %h %h",
+                 dut.u_dmem.mem[7],
+                 dut.u_dmem.mem[6],
+                 dut.u_dmem.mem[5],
+                 dut.u_dmem.mem[4]);
 
         $display("==================================");
 
-        if (dut.u_regfile.regs[1]  == 32'h1000_0000 &&
-            dut.u_regfile.regs[3]  == 32'ha5a5_1234 &&
-            dut.u_regfile.regs[4]  == 32'h2000_0000 &&
-            dut.u_regfile.regs[9]  == 32'd42 &&
-            dut.u_regfile.regs[10] == 32'd42 &&
-            dut.u_regfile.regs[11] == 32'd42 &&
-            dut.u_regfile.regs[12] == 32'd77 &&
-            gpio_out               == 32'd42 &&
-            dut.u_regfile.regs[5]  > 32'd0 &&
-            dut.u_regfile.regs[6]  > 32'd0 &&
-            dut.u_regfile.regs[13] > 32'd0 &&
-            dut.u_regfile.regs[14] > 32'd0) begin
+        if (dut.u_regfile.regs[1] == 32'h3000_0000 &&
+            dut.u_regfile.regs[5] == 32'd140 &&
+            dut.u_regfile.regs[6] == 32'd3 &&
+            dut.u_dsp_accel.acc_reg == 64'd140 &&
+            dut.u_dsp_accel.mac_count == 32'd3 &&
+            {dut.u_dmem.mem[3], dut.u_dmem.mem[2],
+             dut.u_dmem.mem[1], dut.u_dmem.mem[0]} == 32'd140 &&
+            {dut.u_dmem.mem[7], dut.u_dmem.mem[6],
+             dut.u_dmem.mem[5], dut.u_dmem.mem[4]} == 32'd3) begin
 
             $display("TEST PASSED");
         end else begin
@@ -93,15 +74,12 @@ module tb_pipelined_cpu;
     end
 
     initial begin
-        $monitor("time=%0t pc=%0d gpio_out=%h cycle=%0d instr=%0d stall=%0d flush=%0d IF_ID=%h WB_data=%h",
+        $monitor("time=%0t pc=%0d IF_ID=%h DSP_ACC=%0d DSP_COUNT=%0d WB_data=%h",
                  $time,
                  dut.pc,
-                 gpio_out,
-                 dut.cycle_count,
-                 dut.instr_count,
-                 dut.stall_count,
-                 dut.flush_count,
                  dut.IF_ID_instr,
+                 dut.u_dsp_accel.acc_reg,
+                 dut.u_dsp_accel.mac_count,
                  dut.WB_write_data);
     end
 

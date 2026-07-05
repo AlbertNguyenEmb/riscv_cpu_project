@@ -13,40 +13,46 @@ module imem_pipeline (
             mem[i] = 32'h00000013; // NOP
         end
 
-        // GPIO base = 0x1000_0000
-        // PERF base = 0x2000_0000
+        // DSP_BASE = 0x3000_0000
+        //
+        // DSP_CTRL      = 0x3000_0000
+        // DSP_A         = 0x3000_0008
+        // DSP_B         = 0x3000_000C
+        // DSP_RESULT_LO = 0x3000_0010
+        // DSP_COUNT     = 0x3000_0018
+        //
+        // Compute:
+        // ACC = 1*10 + 2*20 + 3*30 = 140
 
-        mem[0]  = 32'h100000b7; // lui  x1, 0x10000      ; x1 = 0x1000_0000
-        mem[1]  = 32'h05500113; // addi x2, x0, 0x55
-        mem[2]  = 32'h0020a023; // sw   x2, 0(x1)        ; GPIO_OUT = 0x55
-        mem[3]  = 32'h0040a183; // lw   x3, 4(x1)        ; x3 = GPIO_IN
+        mem[0]  = 32'h300000b7; // lui  x1, 0x30000       ; x1 = 0x3000_0000
 
-        mem[4]  = 32'h20000237; // lui  x4, 0x20000      ; x4 = 0x2000_0000
-        mem[5]  = 32'h00022283; // lw   x5, 0(x4)        ; cycle_count
-        mem[6]  = 32'h00422303; // lw   x6, 4(x4)        ; instr_count
+        mem[1]  = 32'h00200113; // addi x2, x0, 2         ; clear bit
+        mem[2]  = 32'h0020a023; // sw   x2, 0(x1)         ; DSP_CTRL = clear
 
-        // Create load-use stall
-        mem[7]  = 32'h02a00493; // addi x9, x0, 42
-        mem[8]  = 32'h00902823; // sw   x9, 16(x0)
-        mem[9]  = 32'h01002503; // lw   x10, 16(x0)
-        mem[10] = 32'h000505b3; // add  x11, x10, x0     ; load-use hazard
+        mem[3]  = 32'h00100193; // addi x3, x0, 1
+        mem[4]  = 32'h00a00213; // addi x4, x0, 10
+        mem[5]  = 32'h0030a423; // sw   x3, 8(x1)         ; DSP_A = 1
+        mem[6]  = 32'h0040a623; // sw   x4, 12(x1)        ; DSP_B = 10
+        mem[7]  = 32'h00100113; // addi x2, x0, 1         ; start bit
+        mem[8]  = 32'h0020a023; // sw   x2, 0(x1)         ; start MAC
 
-        // Create branch flush
-        mem[11] = 32'h00958663; // beq  x11, x9, +12
-        mem[12] = 32'h06f00613; // addi x12, x0, 111     ; flushed
-        mem[13] = 32'h07000613; // addi x12, x0, 112     ; flushed
-        mem[14] = 32'h04d00613; // addi x12, x0, 77      ; real target
+        mem[9]  = 32'h00200193; // addi x3, x0, 2
+        mem[10] = 32'h01400213; // addi x4, x0, 20
+        mem[11] = 32'h0030a423; // sw   x3, 8(x1)         ; DSP_A = 2
+        mem[12] = 32'h0040a623; // sw   x4, 12(x1)        ; DSP_B = 20
+        mem[13] = 32'h0020a023; // sw   x2, 0(x1)         ; start MAC
 
-        // GPIO_OUT = 42
-        mem[15] = 32'h00b0a023; // sw   x11, 0(x1)
+        mem[14] = 32'h00300193; // addi x3, x0, 3
+        mem[15] = 32'h01e00213; // addi x4, x0, 30
+        mem[16] = 32'h0030a423; // sw   x3, 8(x1)         ; DSP_A = 3
+        mem[17] = 32'h0040a623; // sw   x4, 12(x1)        ; DSP_B = 30
+        mem[18] = 32'h0020a023; // sw   x2, 0(x1)         ; start MAC
 
-        // Read counters after stall/flush happened
-        mem[16] = 32'h00822683; // lw   x13, 8(x4)       ; stall_count
-        mem[17] = 32'h00c22703; // lw   x14, 12(x4)      ; flush_count
+        mem[19] = 32'h0100a283; // lw   x5, 16(x1)        ; x5 = RESULT_LO
+        mem[20] = 32'h0180a303; // lw   x6, 24(x1)        ; x6 = COUNT
 
-        // Store counters into DMEM for checking
-        mem[18] = 32'h00d02a23; // sw   x13, 20(x0)
-        mem[19] = 32'h00e02c23; // sw   x14, 24(x0)
+        mem[21] = 32'h00502023; // sw   x5, 0(x0)         ; DMEM[0] = 140
+        mem[22] = 32'h00602223; // sw   x6, 4(x0)         ; DMEM[4] = 3
     end
 
     assign instr = mem[addr[9:2]];
