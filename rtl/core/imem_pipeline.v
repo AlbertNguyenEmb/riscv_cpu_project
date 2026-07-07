@@ -13,70 +13,53 @@ module imem_pipeline (
             mem[i] = 32'h00000013; // NOP
         end
 
-        // DSP_BASE = 0x3000_0000
+        // AI_BASE = 0x4000_0000
         //
-        // FIR_CTRL      = 0x3000_0020
-        // FIR_X0        = 0x3000_0028
-        // FIR_X1        = 0x3000_002C
-        // FIR_X2        = 0x3000_0030
-        // FIR_X3        = 0x3000_0034
-        // FIR_H0        = 0x3000_0038
-        // FIR_H1        = 0x3000_003C
-        // FIR_H2        = 0x3000_0040
-        // FIR_H3        = 0x3000_0044
-        // FIR_RESULT_LO = 0x3000_0048
-        // FIR_COUNT     = 0x3000_0050
-        //
-        // Compute:
-        // y = 1*10 + 2*20 + 3*30 + 4*40 = 300
+        // AI_CTRL     = 0x4000_0000
+        // AI_VEC_A    = 0x4000_0008
+        // AI_VEC_B    = 0x4000_000C
+        // AI_ACC_LO   = 0x4000_0010
+        // AI_LAST_DOT = 0x4000_0018
+        // AI_COUNT    = 0x4000_001C
 
-        mem[0]  = 32'h300000b7; // lui  x1, 0x30000       ; x1 = 0x3000_0000
+        mem[0]  = 32'h400000b7; // lui  x1, 0x40000       ; x1 = 0x4000_0000
 
         mem[1]  = 32'h00200213; // addi x4, x0, 2
-        mem[2]  = 32'h0240a023; // sw   x4, 32(x1)        ; FIR_CTRL = clear
+        mem[2]  = 32'h0040a023; // sw   x4, 0(x1)         ; AI_CTRL = clear
 
-        mem[3]  = 32'h00100113; // addi x2, x0, 1
-        mem[4]  = 32'h0220a423; // sw   x2, 40(x1)        ; FIR_X0 = 1
+        // A1 = [1,2,3,4] packed = 0x04030201
+        mem[3]  = 32'h04030137; // lui  x2, 0x04030
+        mem[4]  = 32'h20110113; // addi x2, x2, 0x201
 
-        mem[5]  = 32'h00200113; // addi x2, x0, 2
-        mem[6]  = 32'h0220a623; // sw   x2, 44(x1)        ; FIR_X1 = 2
+        // B1 = [10,20,30,40] packed = 0x281E140A
+        mem[5]  = 32'h281e11b7; // lui  x3, 0x281e1
+        mem[6]  = 32'h40a18193; // addi x3, x3, 0x40a
 
-        mem[7]  = 32'h00300113; // addi x2, x0, 3
-        mem[8]  = 32'h0220a823; // sw   x2, 48(x1)        ; FIR_X2 = 3
+        mem[7]  = 32'h0020a423; // sw   x2, 8(x1)         ; AI_VEC_A
+        mem[8]  = 32'h0030a623; // sw   x3, 12(x1)        ; AI_VEC_B
 
-        mem[9]  = 32'h00400113; // addi x2, x0, 4
-        mem[10] = 32'h0220aa23; // sw   x2, 52(x1)        ; FIR_X3 = 4
+        mem[9]  = 32'h00100213; // addi x4, x0, 1
+        mem[10] = 32'h0040a023; // sw   x4, 0(x1)         ; start dot4
 
-        mem[11] = 32'h00a00193; // addi x3, x0, 10
-        mem[12] = 32'h0230ac23; // sw   x3, 56(x1)        ; FIR_H0 = 10
+        // A2 = [-1,-2,3,4] packed = 0x0403FEFF
+        mem[11] = 32'h04040137; // lui  x2, 0x04040
+        mem[12] = 32'heff10113; // addi x2, x2, -257
 
-        mem[13] = 32'h01400193; // addi x3, x0, 20
-        mem[14] = 32'h0230ae23; // sw   x3, 60(x1)        ; FIR_H1 = 20
+        // B2 = [5,6,-7,8] packed = 0x08F90605
+        mem[13] = 32'h08f901b7; // lui  x3, 0x08f90
+        mem[14] = 32'h60518193; // addi x3, x3, 0x605
 
-        mem[15] = 32'h01e00193; // addi x3, x0, 30
-        mem[16] = 32'h0430a023; // sw   x3, 64(x1)        ; FIR_H2 = 30
+        mem[15] = 32'h0020a423; // sw   x2, 8(x1)         ; AI_VEC_A
+        mem[16] = 32'h0030a623; // sw   x3, 12(x1)        ; AI_VEC_B
+        mem[17] = 32'h0040a023; // sw   x4, 0(x1)         ; start dot4
 
-        mem[17] = 32'h02800193; // addi x3, x0, 40
-        mem[18] = 32'h0430a223; // sw   x3, 68(x1)        ; FIR_H3 = 40
+        mem[18] = 32'h0100a283; // lw   x5, 16(x1)        ; x5 = ACC_LO = 294
+        mem[19] = 32'h0180a303; // lw   x6, 24(x1)        ; x6 = LAST_DOT = -6
+        mem[20] = 32'h01c0a383; // lw   x7, 28(x1)        ; x7 = COUNT = 2
 
-        mem[19] = 32'h00100213; // addi x4, x0, 1
-        mem[20] = 32'h0240a023; // sw   x4, 32(x1)        ; FIR_CTRL = start
-
-        // Wait several cycles for FIR FSM to finish
-        mem[21] = 32'h00000013; // nop
-        mem[22] = 32'h00000013; // nop
-        mem[23] = 32'h00000013; // nop
-        mem[24] = 32'h00000013; // nop
-        mem[25] = 32'h00000013; // nop
-        mem[26] = 32'h00000013; // nop
-        mem[27] = 32'h00000013; // nop
-        mem[28] = 32'h00000013; // nop
-
-        mem[29] = 32'h0480a283; // lw   x5, 72(x1)        ; x5 = FIR_RESULT_LO
-        mem[30] = 32'h0500a303; // lw   x6, 80(x1)        ; x6 = FIR_COUNT
-
-        mem[31] = 32'h00502023; // sw   x5, 0(x0)         ; DMEM[0] = 300
-        mem[32] = 32'h00602223; // sw   x6, 4(x0)         ; DMEM[4] = 1
+        mem[21] = 32'h00502023; // sw   x5, 0(x0)         ; DMEM[0] = 294
+        mem[22] = 32'h00602223; // sw   x6, 4(x0)         ; DMEM[4] = -6
+        mem[23] = 32'h00702423; // sw   x7, 8(x0)         ; DMEM[8] = 2
     end
 
     assign instr = mem[addr[9:2]];

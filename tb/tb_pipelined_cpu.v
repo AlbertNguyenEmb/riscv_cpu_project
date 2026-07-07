@@ -30,50 +30,52 @@ module tb_pipelined_cpu;
         #1200;
 
         $display("==================================");
-        $display("Level 11 FIR Accelerator Results:");
+        $display("Level 12 AI INT8 Dot-Product Accelerator Results:");
 
-        $display("DSP_BASE x1        = %h", dut.u_regfile.regs[1]);
-        $display("FIR_RESULT x5      = %0d", dut.u_regfile.regs[5]);
-        $display("FIR_COUNT x6       = %0d", dut.u_regfile.regs[6]);
+        $display("AI_BASE x1       = %h", dut.u_regfile.regs[1]);
+        $display("ACC_LO x5        = %0d", dut.u_regfile.regs[5]);
+        $display("LAST_DOT x6      = %0d", $signed(dut.u_regfile.regs[6]));
+        $display("AI_COUNT x7      = %0d", dut.u_regfile.regs[7]);
 
-        $display("FIR_X0             = %0d", dut.u_dsp_accel.fir_x0);
-        $display("FIR_X1             = %0d", dut.u_dsp_accel.fir_x1);
-        $display("FIR_X2             = %0d", dut.u_dsp_accel.fir_x2);
-        $display("FIR_X3             = %0d", dut.u_dsp_accel.fir_x3);
+        $display("AI vec A         = %h", dut.u_ai_accel.vec_a_reg);
+        $display("AI vec B         = %h", dut.u_ai_accel.vec_b_reg);
+        $display("AI ACC           = %0d", dut.u_ai_accel.acc_reg);
+        $display("AI LAST DOT      = %0d", dut.u_ai_accel.last_dot_reg);
+        $display("AI COUNT         = %0d", dut.u_ai_accel.dot_count);
 
-        $display("FIR_H0             = %0d", dut.u_dsp_accel.fir_h0);
-        $display("FIR_H1             = %0d", dut.u_dsp_accel.fir_h1);
-        $display("FIR_H2             = %0d", dut.u_dsp_accel.fir_h2);
-        $display("FIR_H3             = %0d", dut.u_dsp_accel.fir_h3);
-
-        $display("FIR internal ACC   = %0d", dut.u_dsp_accel.fir_acc_reg);
-        $display("FIR internal count = %0d", dut.u_dsp_accel.fir_count);
-        $display("FIR busy           = %b",  dut.u_dsp_accel.fir_busy);
-        $display("FIR done           = %b",  dut.u_dsp_accel.fir_done);
-
-        $display("DMEM[0..3] = %h %h %h %h",
+        $display("DMEM[0..3] ACC       = %h %h %h %h",
                  dut.u_dmem.mem[3],
                  dut.u_dmem.mem[2],
                  dut.u_dmem.mem[1],
                  dut.u_dmem.mem[0]);
 
-        $display("DMEM[4..7] = %h %h %h %h",
+        $display("DMEM[4..7] LAST_DOT  = %h %h %h %h",
                  dut.u_dmem.mem[7],
                  dut.u_dmem.mem[6],
                  dut.u_dmem.mem[5],
                  dut.u_dmem.mem[4]);
 
+        $display("DMEM[8..11] COUNT    = %h %h %h %h",
+                 dut.u_dmem.mem[11],
+                 dut.u_dmem.mem[10],
+                 dut.u_dmem.mem[9],
+                 dut.u_dmem.mem[8]);
+
         $display("==================================");
 
-        if (dut.u_regfile.regs[1] == 32'h3000_0000 &&
-            dut.u_regfile.regs[5] == 32'd300 &&
-            dut.u_regfile.regs[6] == 32'd1 &&
-            dut.u_dsp_accel.fir_acc_reg == 64'd300 &&
-            dut.u_dsp_accel.fir_count == 32'd1 &&
+        if (dut.u_regfile.regs[1] == 32'h4000_0000 &&
+            dut.u_regfile.regs[5] == 32'd294 &&
+            dut.u_regfile.regs[6] == 32'hffff_fffa &&
+            dut.u_regfile.regs[7] == 32'd2 &&
+            dut.u_ai_accel.acc_reg == 64'd294 &&
+            dut.u_ai_accel.last_dot_reg == 32'hffff_fffa &&
+            dut.u_ai_accel.dot_count == 32'd2 &&
             {dut.u_dmem.mem[3], dut.u_dmem.mem[2],
-             dut.u_dmem.mem[1], dut.u_dmem.mem[0]} == 32'd300 &&
+             dut.u_dmem.mem[1], dut.u_dmem.mem[0]} == 32'd294 &&
             {dut.u_dmem.mem[7], dut.u_dmem.mem[6],
-             dut.u_dmem.mem[5], dut.u_dmem.mem[4]} == 32'd1) begin
+             dut.u_dmem.mem[5], dut.u_dmem.mem[4]} == 32'hffff_fffa &&
+            {dut.u_dmem.mem[11], dut.u_dmem.mem[10],
+             dut.u_dmem.mem[9], dut.u_dmem.mem[8]} == 32'd2) begin
 
             $display("TEST PASSED");
         end else begin
@@ -84,14 +86,13 @@ module tb_pipelined_cpu;
     end
 
     initial begin
-        $monitor("time=%0t pc=%0d IF_ID=%h FIR_busy=%b FIR_done=%b FIR_ACC=%0d FIR_COUNT=%0d WB_data=%h",
+        $monitor("time=%0t pc=%0d IF_ID=%h AI_ACC=%0d AI_LAST=%0d AI_COUNT=%0d WB_data=%h",
                  $time,
                  dut.pc,
                  dut.IF_ID_instr,
-                 dut.u_dsp_accel.fir_busy,
-                 dut.u_dsp_accel.fir_done,
-                 dut.u_dsp_accel.fir_acc_reg,
-                 dut.u_dsp_accel.fir_count,
+                 dut.u_ai_accel.acc_reg,
+                 dut.u_ai_accel.last_dot_reg,
+                 dut.u_ai_accel.dot_count,
                  dut.WB_write_data);
     end
 

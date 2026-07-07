@@ -350,12 +350,14 @@ module pipelined_cpu (
     wire MEM_is_perf; // MEM is Performance Counter
     wire MEM_is_dsp;
     wire MEM_is_mmio;
+    wire MEM_is_ai;
 
     assign MEM_is_gpio = (EX_MEM_alu_result[31:16] == 16'h1000);
     assign MEM_is_perf = (EX_MEM_alu_result[31:16] == 16'h2000);
     assign MEM_is_dsp  = (EX_MEM_alu_result[31:16] == 16'h3000);
+    assign MEM_is_ai   = (EX_MEM_alu_result[31:16] == 16'h4000);
 
-    assign MEM_is_mmio = MEM_is_gpio || MEM_is_perf || MEM_is_dsp;
+    assign MEM_is_mmio = MEM_is_gpio || MEM_is_perf || MEM_is_dsp || MEM_is_ai;
 
     wire [31:0] MEM_read_data;
     reg  [31:0] MEM_mmio_read_data;
@@ -394,6 +396,22 @@ module pipelined_cpu (
         .write_data(EX_MEM_write_data),
         .read_data(DSP_read_data)
     );
+    // ============================================================
+    // Instantiate AI accelerator
+    // ============================================================
+    wire [31:0] AI_read_data;
+    wire        AI_write_en;
+
+    assign AI_write_en = EX_MEM_mem_write && MEM_is_ai;
+
+    ai_accel u_ai_accel (
+        .clk(clk),
+        .rst(rst),
+        .write_en(AI_write_en),
+        .addr(EX_MEM_alu_result[7:0]),
+        .write_data(EX_MEM_write_data),
+        .read_data(AI_read_data)
+    );
 
     // ============================================================
     // MMIO Read Data Mux
@@ -402,6 +420,8 @@ module pipelined_cpu (
     always @(*) begin
         if (MEM_is_dsp) begin
             MEM_mmio_read_data = DSP_read_data;
+        end else if (MEM_is_ai) begin
+            MEM_mmio_read_data = AI_read_data;
         end else begin
             case (EX_MEM_alu_result)
                 // GPIO
