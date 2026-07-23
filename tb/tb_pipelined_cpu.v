@@ -27,55 +27,35 @@ module tb_pipelined_cpu;
         #12;
         rst = 0;
 
-        #1200;
+        #2000;
 
         $display("==================================");
-        $display("Level 12 AI INT8 Dot-Product Accelerator Results:");
+        $display("Level 13 AES-128 Crypto Accelerator Results:");
 
-        $display("AI_BASE x1       = %h", dut.u_regfile.regs[1]);
-        $display("ACC_LO x5        = %0d", dut.u_regfile.regs[5]);
-        $display("LAST_DOT x6      = %0d", $signed(dut.u_regfile.regs[6]));
-        $display("AI_COUNT x7      = %0d", dut.u_regfile.regs[7]);
+        $display("CRYPTO_BASE x1 = %h", dut.u_regfile.regs[1]);
+        $display("CT0 x5 = %h", dut.u_regfile.regs[5]);
+        $display("CT1 x6 = %h", dut.u_regfile.regs[6]);
+        $display("CT2 x7 = %h", dut.u_regfile.regs[7]);
+        $display("CT3 x8 = %h", dut.u_regfile.regs[8]);
 
-        $display("AI vec A         = %h", dut.u_ai_accel.vec_a_reg);
-        $display("AI vec B         = %h", dut.u_ai_accel.vec_b_reg);
-        $display("AI ACC           = %0d", dut.u_ai_accel.acc_reg);
-        $display("AI LAST DOT      = %0d", dut.u_ai_accel.last_dot_reg);
-        $display("AI COUNT         = %0d", dut.u_ai_accel.dot_count);
+        $display("AES ciphertext internal = %h", dut.u_crypto_accel.ciphertext_reg);
+        $display("AES op_count = %0d", dut.u_crypto_accel.op_count);
 
-        $display("DMEM[0..3] ACC       = %h %h %h %h",
-                 dut.u_dmem.mem[3],
-                 dut.u_dmem.mem[2],
-                 dut.u_dmem.mem[1],
-                 dut.u_dmem.mem[0]);
-
-        $display("DMEM[4..7] LAST_DOT  = %h %h %h %h",
-                 dut.u_dmem.mem[7],
-                 dut.u_dmem.mem[6],
-                 dut.u_dmem.mem[5],
-                 dut.u_dmem.mem[4]);
-
-        $display("DMEM[8..11] COUNT    = %h %h %h %h",
-                 dut.u_dmem.mem[11],
-                 dut.u_dmem.mem[10],
-                 dut.u_dmem.mem[9],
-                 dut.u_dmem.mem[8]);
+        $display("DMEM CT = %h%h%h%h",
+                 {dut.u_dmem.mem[3],  dut.u_dmem.mem[2],  dut.u_dmem.mem[1],  dut.u_dmem.mem[0]},
+                 {dut.u_dmem.mem[7],  dut.u_dmem.mem[6],  dut.u_dmem.mem[5],  dut.u_dmem.mem[4]},
+                 {dut.u_dmem.mem[11], dut.u_dmem.mem[10], dut.u_dmem.mem[9],  dut.u_dmem.mem[8]},
+                 {dut.u_dmem.mem[15], dut.u_dmem.mem[14], dut.u_dmem.mem[13], dut.u_dmem.mem[12]});
 
         $display("==================================");
 
-        if (dut.u_regfile.regs[1] == 32'h4000_0000 &&
-            dut.u_regfile.regs[5] == 32'd294 &&
-            dut.u_regfile.regs[6] == 32'hffff_fffa &&
-            dut.u_regfile.regs[7] == 32'd2 &&
-            dut.u_ai_accel.acc_reg == 64'd294 &&
-            dut.u_ai_accel.last_dot_reg == 32'hffff_fffa &&
-            dut.u_ai_accel.dot_count == 32'd2 &&
-            {dut.u_dmem.mem[3], dut.u_dmem.mem[2],
-             dut.u_dmem.mem[1], dut.u_dmem.mem[0]} == 32'd294 &&
-            {dut.u_dmem.mem[7], dut.u_dmem.mem[6],
-             dut.u_dmem.mem[5], dut.u_dmem.mem[4]} == 32'hffff_fffa &&
-            {dut.u_dmem.mem[11], dut.u_dmem.mem[10],
-             dut.u_dmem.mem[9], dut.u_dmem.mem[8]} == 32'd2) begin
+        if (dut.u_regfile.regs[1] == 32'h5000_0000 &&
+            dut.u_regfile.regs[5] == 32'h69c4e0d8 &&
+            dut.u_regfile.regs[6] == 32'h6a7b0430 &&
+            dut.u_regfile.regs[7] == 32'hd8cdb780 &&
+            dut.u_regfile.regs[8] == 32'h70b4c55a &&
+            dut.u_crypto_accel.ciphertext_reg == 128'h69c4e0d86a7b0430d8cdb78070b4c55a &&
+            dut.u_crypto_accel.op_count == 32'd1) begin
 
             $display("TEST PASSED");
         end else begin
@@ -86,13 +66,13 @@ module tb_pipelined_cpu;
     end
 
     initial begin
-        $monitor("time=%0t pc=%0d IF_ID=%h AI_ACC=%0d AI_LAST=%0d AI_COUNT=%0d WB_data=%h",
+        $monitor("time=%0t pc=%0d IF_ID=%h AES_busy=%b AES_done=%b CT=%h WB=%h",
                  $time,
                  dut.pc,
                  dut.IF_ID_instr,
-                 dut.u_ai_accel.acc_reg,
-                 dut.u_ai_accel.last_dot_reg,
-                 dut.u_ai_accel.dot_count,
+                 dut.u_crypto_accel.aes_busy,
+                 dut.u_crypto_accel.aes_done,
+                 dut.u_crypto_accel.ciphertext_reg,
                  dut.WB_write_data);
     end
 
