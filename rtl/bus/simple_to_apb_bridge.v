@@ -9,7 +9,7 @@ module simple_to_apb_bridge(
     input wire        we, // 1 = write, 0 = read
     input wire [31:0] addr,
     input wire [31:0] wdata,
-    input wire [3:0]  be
+    input wire [3:0]  be,
 
     output reg [31:0] rdata,
     output reg        ready,
