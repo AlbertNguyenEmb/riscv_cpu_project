@@ -97,7 +97,7 @@ module pipelined_cpu (
     reg [31:0] pc;
     wire [31:0] instr_from_imem;
 
-    imem_pipeline u_imem (
+    imem u_imem (
         .addr(pc),
         .instr(instr_from_imem)
     );
